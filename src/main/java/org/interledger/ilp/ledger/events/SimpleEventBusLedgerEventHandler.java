@@ -1,6 +1,7 @@
 package org.interledger.ilp.ledger.events;
 
 import com.google.common.eventbus.EventBus;
+import org.interledger.ilp.core.Ledger;
 import org.interledger.ilp.core.events.LedgerConnectedEvent;
 import org.interledger.ilp.core.events.LedgerDirectTransferEvent;
 import org.interledger.ilp.core.events.LedgerDisonnectedEvent;
@@ -20,10 +21,11 @@ public class SimpleEventBusLedgerEventHandler extends AbstractEventBusLedgerEven
     /**
      * Required-args Constructor.
      *
+     * @param ledger   The ledger that this handler responds to events for.
      * @param eventBus An instance of {@link EventBus} that can be custom-configured by the creator of this class.
      */
-    public SimpleEventBusLedgerEventHandler(final EventBus eventBus) {
-        super(eventBus);
+    public SimpleEventBusLedgerEventHandler(final Ledger ledger, final EventBus eventBus) {
+        super(ledger, eventBus);
     }
 
     @Override

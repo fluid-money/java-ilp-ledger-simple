@@ -4,7 +4,6 @@ import com.google.common.eventbus.EventBus;
 import org.interledger.ilp.core.LedgerTransfer;
 import org.interledger.ilp.ledger.Currencies;
 import org.interledger.ilp.ledger.account.LedgerAccount;
-import org.interledger.ilp.ledger.events.SimpleEventBusLedgerEventHandler;
 import org.interledger.ilp.ledger.impl.LedgerTransferBuilder;
 import org.interledger.ilp.ledger.impl.SimpleLedger;
 import org.interledger.ilp.ledger.impl.SimpleLedgerAccount;
@@ -41,7 +40,8 @@ public class SimpleLedgerEventHandlerTest {
     public void testRegisterEventHandler() {
         System.out.println("registerEventHandler");
 
-        final SimpleEventBusLedgerEventHandler handler = new SimpleEventBusLedgerEventHandler(this.eventBus);
+        final SimpleEventBusLedgerEventHandler handler = new SimpleEventBusLedgerEventHandler(
+                simpleLedger, this.eventBus);
         simpleLedger.registerEventHandler(handler);
 
         System.out.println("send");
@@ -51,7 +51,8 @@ public class SimpleLedgerEventHandlerTest {
         simpleLedger.getLedgerAccountManager().addAccount(bob);
         LedgerTransfer transfer = LedgerTransferBuilder.instance()
                 .from(alice)
-                .destination("bob@test")
+                .to(bob)
+                .destination("bob@example.com")
                 .amount(Money.of(10, CURRENCY.code()))
                 .build();
         simpleLedger.send(transfer);

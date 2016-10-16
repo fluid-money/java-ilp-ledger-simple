@@ -1,14 +1,15 @@
 package org.interledger.ilp.ledger.impl;
 
+import com.google.common.base.MoreObjects;
 import com.google.common.base.Preconditions;
 import org.interledger.cryptoconditions.Fulfillment;
 import org.interledger.ilp.core.Ledger;
 import org.interledger.ilp.core.LedgerInfo;
 import org.interledger.ilp.core.LedgerTransfer;
 import org.interledger.ilp.core.LedgerTransferRejectedReason;
+import org.interledger.ilp.core.events.LedgerDirectTransferEvent;
 import org.interledger.ilp.core.events.LedgerEvent;
 import org.interledger.ilp.core.events.LedgerEventHandler;
-import org.interledger.ilp.core.events.LedgerTransferExecutedEvent;
 import org.interledger.ilp.core.exceptions.InsufficientAmountException;
 import org.interledger.ilp.ledger.Currencies;
 import org.interledger.ilp.ledger.LedgerAccountManagerFactory;
@@ -35,6 +36,8 @@ public class SimpleLedger implements Ledger, LedgerAccountManagerAware {
     private String name;
 //    private LedgerAccountManager accountManager;
 
+    private final LedgerAddressParser ledgerAddressParser;
+
     public SimpleLedger(Currencies currency, String name) {
         this(LedgerInfoFactory.from(currency), name);
     }
@@ -46,6 +49,7 @@ public class SimpleLedger implements Ledger, LedgerAccountManagerAware {
     public SimpleLedger(LedgerInfo info, String name) {
         this.info = info;
         this.name = name;
+        this.ledgerAddressParser = new SimpleLedgerAddressParser();
     }
 
 
@@ -58,13 +62,47 @@ public class SimpleLedger implements Ledger, LedgerAccountManagerAware {
     }
 
     public void send(LedgerTransfer transfer) {
-    	LedgerAccountManager accountManager = LedgerAccountManagerFactory.getAccountManagerSingleton();
-        LedgerAccount from = accountManager.getAccountByName(transfer.getFromAccount());
-        LedgerAccount to = accountManager.getAccountByName(transfer.getToAccount());
-        if (to.equals(from)) {
-            throw new RuntimeException("accounts are the same");
+        Preconditions.checkNotNull(transfer);
+
+        if (isLocalAccount(transfer.getHeader().getDestinationAddress())) {
+            this.sendLocally(transfer);
+        } else {
+            this.sendRemote(transfer);
         }
-        MonetaryAmount amount = MoneyUtils.toMonetaryAmount(transfer.getAmount(), info.getCurrencyCode());
+    }
+
+    /**
+     * If the specified {@code destinationAddress} has a corresponding account on this ledger, then the account is
+     * considered 'local', and this method will return {@code true}.  Otherwise, the account is considered 'non-local',
+     * and this method will return {@code false}.
+     *
+     * @param destinationAddress A {@link String} representing an ILP address of the ultimate destination account that
+     *                           funds will be transferred to as part of a {@link LedgerTransfer}.
+     * @return
+     */
+    private boolean isLocalAccount(final String destinationAddress) {
+        // TODO: Refactor SimpleLedgerAddressParser for DI and then thread-safety.
+        final SimpleLedgerAddressParser parser = new SimpleLedgerAddressParser();
+        parser.parse(destinationAddress);
+        final String accountName = parser.getAccountName();
+        final LedgerAccount account = this.getLedgerAccountManager().getAccountByName(accountName);
+        return account != null;
+    }
+
+    /**
+     * Completes the supplied {@link LedgerTransfer} locally without utilizing any conditions or connectors.
+     *
+     * @param transfer An instance of {@link LedgerTransfer} to complete locally.
+     */
+    private void sendLocally(final LedgerTransfer transfer) {
+        final LedgerAccountManager accountManager = LedgerAccountManagerFactory.getAccountManagerSingleton();
+        final LedgerAccount from = accountManager.getAccountByName(transfer.getFromAccount());
+        final LedgerAccount to = accountManager.getAccountByName(transfer.getToAccount());
+        if (to.equals(from)) {
+            throw new RuntimeException("Accounts are the same!");
+        }
+
+        final MonetaryAmount amount = MoneyUtils.toMonetaryAmount(transfer.getAmount(), info.getCurrencyCode());
         if (from.getBalance().isGreaterThanOrEqualTo(amount)) {
             from.debit(amount);
             to.credit(amount);
@@ -72,12 +110,22 @@ public class SimpleLedger implements Ledger, LedgerAccountManagerAware {
             throw new InsufficientAmountException(amount.toString());
         }
 
-        // Notify all Event Handlers...
-        final LedgerTransferExecutedEvent ledgerTransferExecutedEvent = new LedgerTransferExecutedEvent(
+        // For Local Transfer, the only event is a LedgerDirectTransferEvent.
+        final LedgerDirectTransferEvent ledgerTransferExecutedEvent = new LedgerDirectTransferEvent(
                 this, transfer.getHeader(), transfer.getFromAccount(), transfer.getToAccount(), transfer.getAmount()
         );
         this.notifyEventHandlers(ledgerTransferExecutedEvent);
     }
+
+    /**
+     * Attempts to complete the supplied {@link LedgerTransfer} using ILP.
+     *
+     * @param ledgerTransfer
+     */
+    private void sendRemote(final LedgerTransfer ledgerTransfer) {
+        throw new RuntimeException("Not yet implemented!");
+    }
+
 
     public void rejectTransfer(LedgerTransfer transfer, LedgerTransferRejectedReason reason) {
         throw new UnsupportedOperationException("Not supported yet.");
@@ -97,9 +145,7 @@ public class SimpleLedger implements Ledger, LedgerAccountManagerAware {
     // TODO: Consider modifying LedgerEventHandler#onLedgerEvent to return a boolean to indicate if an event was handled?
     private void notifyEventHandlers(final LedgerEvent ledgerEvent) {
         for (final LedgerEventHandler handler : this.ledgerEventHandlers) {
-            //if (handler.isHandled(ledgerEvent)) {
             handler.onLedgerEvent(ledgerEvent);
-            //}
         }
     }
 
@@ -110,5 +156,12 @@ public class SimpleLedger implements Ledger, LedgerAccountManagerAware {
     public LedgerAccountManager getLedgerAccountManager() {
         // FIXME: Remove getLedgerAccountManager here and in parent interface
         return LedgerAccountManagerFactory.getAccountManagerSingleton();
+    }
+
+    @Override
+    public String toString() {
+        return MoreObjects.toStringHelper(this)
+                .add("name", name)
+                .toString();
     }
 }

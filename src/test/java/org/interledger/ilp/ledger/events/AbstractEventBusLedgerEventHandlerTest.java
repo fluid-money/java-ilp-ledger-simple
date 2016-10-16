@@ -1,6 +1,7 @@
 package org.interledger.ilp.ledger.events;
 
 import com.google.common.eventbus.DeadEvent;
+import org.interledger.ilp.core.Ledger;
 import org.interledger.ilp.core.events.LedgerConnectedEvent;
 import org.interledger.ilp.core.events.LedgerDirectTransferEvent;
 import org.interledger.ilp.core.events.LedgerDisonnectedEvent;
@@ -8,8 +9,10 @@ import org.interledger.ilp.core.events.LedgerEvent;
 import org.interledger.ilp.core.events.LedgerTransferExecutedEvent;
 import org.interledger.ilp.core.events.LedgerTransferPreparedEvent;
 import org.interledger.ilp.core.events.LedgerTransferRejectedEvent;
-import org.interledger.ilp.ledger.events.AbstractEventBusLedgerEventHandler;
+import org.junit.Before;
 import org.junit.Test;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -21,6 +24,9 @@ import static org.mockito.Mockito.mock;
  */
 public class AbstractEventBusLedgerEventHandlerTest {
 
+    @Mock
+    private Ledger ledgerMock;
+
     private boolean ledgerConnectedEventHandled = false;
     private boolean ledgerDisonnectedEventHandled = false;
     private boolean ledgerTransferPreparedEventHandled = false;
@@ -28,57 +34,62 @@ public class AbstractEventBusLedgerEventHandlerTest {
     private boolean ledgerTransferRejectedEventHandled = false;
     private boolean ledgerDirectTransferEventHandled = false;
     private boolean deadEventHandled = false;
+    private AbstractEventBusLedgerEventHandler handler;
 
-    private AbstractEventBusLedgerEventHandler handler = new AbstractEventBusLedgerEventHandler() {
+    @Before
+    public void setup() {
+        MockitoAnnotations.initMocks(this);
 
-        @Override
-        protected boolean handleEvent(LedgerConnectedEvent ledgerConnectedEvent) {
-            ledgerConnectedEventHandled = true;
-            return true;
-        }
+        this.handler = new AbstractEventBusLedgerEventHandler(ledgerMock) {
+            @Override
+            protected boolean handleEvent(LedgerConnectedEvent ledgerConnectedEvent) {
+                ledgerConnectedEventHandled = true;
+                return true;
+            }
 
-        @Override
-        protected boolean handleEvent(LedgerDisonnectedEvent ledgerDisonnectedEvent) {
-            ledgerDisonnectedEventHandled = true;
-            return true;
-        }
+            @Override
+            protected boolean handleEvent(LedgerDisonnectedEvent ledgerDisonnectedEvent) {
+                ledgerDisonnectedEventHandled = true;
+                return true;
+            }
 
-        @Override
-        protected boolean handleEvent(
-                LedgerTransferPreparedEvent ledgerTransferPreparedEvent
-        ) {
-            ledgerTransferPreparedEventHandled = true;
-            return true;
-        }
+            @Override
+            protected boolean handleEvent(
+                    LedgerTransferPreparedEvent ledgerTransferPreparedEvent
+            ) {
+                ledgerTransferPreparedEventHandled = true;
+                return true;
+            }
 
-        @Override
-        protected boolean handleEvent(
-                LedgerTransferExecutedEvent ledgerTransferExecutedEvent
-        ) {
-            ledgerTransferExecutedEventHandled = true;
-            return true;
-        }
+            @Override
+            protected boolean handleEvent(
+                    LedgerTransferExecutedEvent ledgerTransferExecutedEvent
+            ) {
+                ledgerTransferExecutedEventHandled = true;
+                return true;
+            }
 
-        @Override
-        protected boolean handleEvent(LedgerDirectTransferEvent ledgerDirectTransferEvent) {
-            ledgerDirectTransferEventHandled = true;
-            return true;
-        }
+            @Override
+            protected boolean handleEvent(LedgerDirectTransferEvent ledgerDirectTransferEvent) {
+                ledgerDirectTransferEventHandled = true;
+                return true;
+            }
 
-        @Override
-        protected boolean handleEvent(
-                LedgerTransferRejectedEvent ledgerTransferRejectedEvent
-        ) {
-            ledgerTransferRejectedEventHandled = true;
-            return true;
-        }
+            @Override
+            protected boolean handleEvent(
+                    LedgerTransferRejectedEvent ledgerTransferRejectedEvent
+            ) {
+                ledgerTransferRejectedEventHandled = true;
+                return true;
+            }
 
-        @Override
-        protected boolean deadEvent(final DeadEvent deadEvent) {
-            deadEventHandled = true;
-            return true;
-        }
-    };
+            @Override
+            protected boolean deadEvent(final DeadEvent deadEvent) {
+                deadEventHandled = true;
+                return true;
+            }
+        };
+    }
 
     /**
      * Assert that each event-bus handler method is called in response to a {@link LedgerEvent} of the proper type.  If
