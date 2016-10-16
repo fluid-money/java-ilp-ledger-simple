@@ -77,13 +77,6 @@ public class SimpleLedger implements Ledger, LedgerAccountManagerAware {
                 this, transfer.getHeader(), transfer.getFromAccount(), transfer.getToAccount(), transfer.getAmount()
         );
         this.notifyEventHandlers(ledgerTransferExecutedEvent);
-        final LedgerEvent ledgerEvent = new LedgerEvent(this) {
-            @Override
-            public Ledger getLedger() {
-                return super.getLedger();
-            }
-        };
-        this.notifyEventHandlers(ledgerEvent);
     }
 
     public void rejectTransfer(LedgerTransfer transfer, LedgerTransferRejectedReason reason) {
