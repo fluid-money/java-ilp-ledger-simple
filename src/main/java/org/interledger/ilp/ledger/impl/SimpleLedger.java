@@ -1,12 +1,14 @@
 package org.interledger.ilp.ledger.impl;
 
-import javax.money.MonetaryAmount;
+import com.google.common.base.Preconditions;
 import org.interledger.cryptoconditions.Fulfillment;
 import org.interledger.ilp.core.Ledger;
 import org.interledger.ilp.core.LedgerInfo;
 import org.interledger.ilp.core.LedgerTransfer;
 import org.interledger.ilp.core.LedgerTransferRejectedReason;
+import org.interledger.ilp.core.events.LedgerEvent;
 import org.interledger.ilp.core.events.LedgerEventHandler;
+import org.interledger.ilp.core.events.LedgerTransferExecutedEvent;
 import org.interledger.ilp.core.exceptions.InsufficientAmountException;
 import org.interledger.ilp.ledger.Currencies;
 import org.interledger.ilp.ledger.LedgerAccountManagerFactory;
@@ -16,6 +18,10 @@ import org.interledger.ilp.ledger.account.LedgerAccount;
 import org.interledger.ilp.ledger.account.LedgerAccountManager;
 import org.interledger.ilp.ledger.account.LedgerAccountManagerAware;
 
+import javax.money.MonetaryAmount;
+import java.util.LinkedList;
+import java.util.List;
+
 /**
  * Simple in-memory ledger implementation
  *
@@ -23,10 +29,12 @@ import org.interledger.ilp.ledger.account.LedgerAccountManagerAware;
  */
 public class SimpleLedger implements Ledger, LedgerAccountManagerAware {
 
+    private List<LedgerEventHandler> ledgerEventHandlers = new LinkedList<LedgerEventHandler>();
+
     private LedgerInfo info;
     private String name;
 //    private LedgerAccountManager accountManager;
-   
+
     public SimpleLedger(Currencies currency, String name) {
         this(LedgerInfoFactory.from(currency), name);
     }
@@ -63,6 +71,19 @@ public class SimpleLedger implements Ledger, LedgerAccountManagerAware {
         } else {
             throw new InsufficientAmountException(amount.toString());
         }
+
+        // Notify all Event Handlers...
+        final LedgerTransferExecutedEvent ledgerTransferExecutedEvent = new LedgerTransferExecutedEvent(
+                this, transfer.getHeader(), transfer.getFromAccount(), transfer.getToAccount(), transfer.getAmount()
+        );
+        this.notifyEventHandlers(ledgerTransferExecutedEvent);
+        final LedgerEvent ledgerEvent = new LedgerEvent(this) {
+            @Override
+            public Ledger getLedger() {
+                return super.getLedger();
+            }
+        };
+        this.notifyEventHandlers(ledgerEvent);
     }
 
     public void rejectTransfer(LedgerTransfer transfer, LedgerTransferRejectedReason reason) {
@@ -73,13 +94,28 @@ public class SimpleLedger implements Ledger, LedgerAccountManagerAware {
         throw new UnsupportedOperationException("Not supported yet.");
     }
 
+    // TODO: consider returning a boolean to align with java.util.Collection - indicates if the handler already existed?
+    @Override
     public void registerEventHandler(LedgerEventHandler<?> handler) {
-        throw new UnsupportedOperationException("Not supported yet.");
+        Preconditions.checkNotNull(handler);
+        this.ledgerEventHandlers.add(handler);
     }
 
-	@Override
-	public LedgerAccountManager getLedgerAccountManager() {
-		// FIXME: Remove getLedgerAccountManager here and in parent interface
-		return LedgerAccountManagerFactory.getAccountManagerSingleton();
-	}
+    // TODO: Consider modifying LedgerEventHandler#onLedgerEvent to return a boolean to indicate if an event was handled?
+    private void notifyEventHandlers(final LedgerEvent ledgerEvent) {
+        for (final LedgerEventHandler handler : this.ledgerEventHandlers) {
+            //if (handler.isHandled(ledgerEvent)) {
+            handler.onLedgerEvent(ledgerEvent);
+            //}
+        }
+    }
+
+    // TODO: The Ledger interface should have the ability to unregister an event handler.  Or, alternatively, an abstract
+    // class should be created that requires the event-handlers at construction time?
+
+    @Override
+    public LedgerAccountManager getLedgerAccountManager() {
+        // FIXME: Remove getLedgerAccountManager here and in parent interface
+        return LedgerAccountManagerFactory.getAccountManagerSingleton();
+    }
 }
