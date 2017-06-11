@@ -61,14 +61,32 @@ public class SimpleLedger implements Ledger, LedgerAccountManagerAware {
         return name;
     }
 
+    /**
+     * Initiate an ILP transfer.
+     */
     public void send(LedgerTransfer transfer) {
         Preconditions.checkNotNull(transfer);
 
-        if (isLocalAccount(transfer.getHeader().getDestinationAddress())) {
-            this.sendLocally(transfer);
-        } else {
-            this.sendRemote(transfer);
+        final LedgerAccountManager accountManager = LedgerAccountManagerFactory.getAccountManagerSingleton();
+        final LedgerAccount from = accountManager.getAccountByName(transfer.getFromAccount());
+        final LedgerAccount to = accountManager.getAccountByName(transfer.getToAccount());
+        if (to.equals(from)) {
+            throw new RuntimeException("Accounts are the same!");
         }
+
+        final MonetaryAmount amount = MoneyUtils.toMonetaryAmount(transfer.getAmount(), info.getCurrencyCode());
+        if (from.getBalance().isGreaterThanOrEqualTo(amount)) {
+            from.debit(amount);
+            to.credit(amount);
+        } else {
+            throw new InsufficientAmountException(amount.toString());
+        }
+
+        // For Local Transfer, the only event is a LedgerDirectTransferEvent.
+        final LedgerDirectTransferEvent ledgerTransferExecutedEvent = new LedgerDirectTransferEvent(
+                this, transfer.getHeader(), transfer.getFromAccount(), transfer.getToAccount(), transfer.getAmount()
+        );
+        this.notifyEventHandlers(ledgerTransferExecutedEvent);
     }
 
     /**
@@ -95,35 +113,7 @@ public class SimpleLedger implements Ledger, LedgerAccountManagerAware {
      * @param transfer An instance of {@link LedgerTransfer} to complete locally.
      */
     private void sendLocally(final LedgerTransfer transfer) {
-        final LedgerAccountManager accountManager = LedgerAccountManagerFactory.getAccountManagerSingleton();
-        final LedgerAccount from = accountManager.getAccountByName(transfer.getFromAccount());
-        final LedgerAccount to = accountManager.getAccountByName(transfer.getToAccount());
-        if (to.equals(from)) {
-            throw new RuntimeException("Accounts are the same!");
-        }
 
-        final MonetaryAmount amount = MoneyUtils.toMonetaryAmount(transfer.getAmount(), info.getCurrencyCode());
-        if (from.getBalance().isGreaterThanOrEqualTo(amount)) {
-            from.debit(amount);
-            to.credit(amount);
-        } else {
-            throw new InsufficientAmountException(amount.toString());
-        }
-
-        // For Local Transfer, the only event is a LedgerDirectTransferEvent.
-        final LedgerDirectTransferEvent ledgerTransferExecutedEvent = new LedgerDirectTransferEvent(
-                this, transfer.getHeader(), transfer.getFromAccount(), transfer.getToAccount(), transfer.getAmount()
-        );
-        this.notifyEventHandlers(ledgerTransferExecutedEvent);
-    }
-
-    /**
-     * Attempts to complete the supplied {@link LedgerTransfer} using ILP.
-     *
-     * @param ledgerTransfer
-     */
-    private void sendRemote(final LedgerTransfer ledgerTransfer) {
-        throw new RuntimeException("Not yet implemented!");
     }
 
 
